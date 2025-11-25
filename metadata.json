@@ -1,0 +1,7 @@
+{
+  "name": "Liquid Float AI",
+  "description": "A miniature, aesthetic floating chat interface with liquid-glass morphism, designed for unobtrusive co-browsing assistance.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
