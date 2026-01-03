@@ -1,12 +1,16 @@
 {
-  "name": "liquid-float-ai",
+  "name": "siteguide",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:widget": "vite build --config vite.config.widget.ts",
+    "preview": "vite preview",
+    "server:dev": "cd server && npm run dev",
+    "server:build": "cd server && npm run build",
+    "server:start": "cd server && npm start"
   },
   "dependencies": {
     "react-dom": "^19.2.0",
@@ -16,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "terser": "^5.30.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

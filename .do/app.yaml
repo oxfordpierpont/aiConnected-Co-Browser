@@ -1,0 +1,88 @@
+# DigitalOcean App Platform Configuration
+# Deploy with: doctl apps create --spec .do/app.yaml
+
+name: siteguide
+
+# Global environment variables (shared across services)
+envs:
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+
+services:
+  # Backend API Server
+  - name: api
+    github:
+      repo: your-org/siteguide
+      branch: main
+      deploy_on_push: true
+    source_dir: server
+    dockerfile_path: server/Dockerfile
+    http_port: 3001
+    instance_count: 2
+    instance_size_slug: professional-xs
+
+    # Health check
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 10
+      period_seconds: 30
+
+    # Environment variables
+    envs:
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SUPABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      - key: SUPABASE_SERVICE_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+    # Routes
+    routes:
+      - path: /api
+      - path: /ws
+      - path: /health
+
+  # Static Widget Assets
+  - name: widget
+    github:
+      repo: your-org/siteguide
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm install && npm run build:widget
+    environment_slug: node-js
+
+    # Serve static files
+    static_publish_path: dist/widget
+
+    # Routes for widget files
+    routes:
+      - path: /siteguide.js
+
+    # CORS headers for widget
+    cors:
+      allow_origins:
+        - prefix: "*"
+      allow_methods:
+        - GET
+        - OPTIONS
+      allow_headers:
+        - Content-Type
+      max_age: "86400"
+
+# Database (optional - using external Supabase instead)
+# databases:
+#   - name: siteguide-db
+#     engine: PG
+#     production: true
+
+# Domain configuration
+domains:
+  - domain: api.siteguide.io
+    type: PRIMARY
+  - domain: cdn.siteguide.io
+    type: ALIAS
