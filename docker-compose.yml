@@ -1,0 +1,89 @@
+# SiteGuide Docker Compose for Dokploy
+# Deploy this file via Dokploy's Docker Compose feature
+#
+# Multi-tenant Architecture:
+# - Single backend serves ALL client sites
+# - Each client gets a unique site_id (UUID)
+# - Site configuration stored in Supabase
+# - Widget loaded via CDN with client's site_id
+
+services:
+  # ===========================================
+  # Backend API Server
+  # ===========================================
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # These will be set in Dokploy's environment variables UI
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    networks:
+      - dokploy-network
+    labels:
+      # Traefik configuration for Dokploy
+      - "traefik.enable=true"
+      # HTTP API routes
+      - "traefik.http.routers.siteguide-api.rule=Host(`api.${DOMAIN}`)"
+      - "traefik.http.routers.siteguide-api.entrypoints=websecure"
+      - "traefik.http.routers.siteguide-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.siteguide-api.loadbalancer.server.port=3001"
+      # WebSocket support
+      - "traefik.http.routers.siteguide-api.middlewares=siteguide-headers"
+      - "traefik.http.middlewares.siteguide-headers.headers.customrequestheaders.Connection=keep-alive, Upgrade"
+      - "traefik.http.middlewares.siteguide-headers.headers.customresponseheaders.Access-Control-Allow-Origin=*"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ===========================================
+  # Widget CDN (Static Files)
+  # ===========================================
+  widget:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - widget-dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.siteguide-cdn.rule=Host(`cdn.${DOMAIN}`)"
+      - "traefik.http.routers.siteguide-cdn.entrypoints=websecure"
+      - "traefik.http.routers.siteguide-cdn.tls.certresolver=letsencrypt"
+      - "traefik.http.services.siteguide-cdn.loadbalancer.server.port=80"
+      # CORS headers for widget
+      - "traefik.http.routers.siteguide-cdn.middlewares=siteguide-cors"
+      - "traefik.http.middlewares.siteguide-cors.headers.accesscontrolallowmethods=GET,OPTIONS"
+      - "traefik.http.middlewares.siteguide-cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.siteguide-cors.headers.accesscontrolmaxage=86400"
+
+  # ===========================================
+  # Widget Builder (runs once to build widget)
+  # ===========================================
+  widget-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.widget
+    volumes:
+      - widget-dist:/app/dist/widget
+    environment:
+      - API_BASE_URL=https://api.${DOMAIN}
+      - WS_URL=wss://api.${DOMAIN}/ws
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  widget-dist:
+    name: siteguide-widget-dist
